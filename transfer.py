@@ -20,8 +20,8 @@ host = '10.25.10.18' # IP of server that will recieve, not this device
 port = 12352
 
 location = "/home/pi/final/"
-vidset = [file for file in glob.glob(location + "videos/encrypted/*", recursive=False)]
-keyset = [file for file in glob.glob(location + "keys/*", recursive=False)]
+vidset = [file for file in glob.glob(location + "videos/encrypted/*.mpc", recursive=False)]
+keyset = [file for file in glob.glob(location + "keys/*.asc", recursive=False)]
 if len(vidset) != len(keyset):
     print("Video and keyfiles are not properly matched")
     exit()

@@ -17,7 +17,7 @@ from base64 import b64decode, b64encode
 
 # global vars
 location = "/home/pi/final/videos/" # location of video files, subfolders "plaintext" and "encrypted" assumed to exist
-seconds = 3 # seconds to record video for
+seconds = int(open("interval", "r").read()) # seconds to record video for
 
 # helps with video recording
 def handler(s, f):
@@ -61,7 +61,7 @@ def encryptVideo(file):
     with open(location+"encrypted/" + numFiles() + ".mpc", "wb") as encf:
         encf.write(enc)
     # save the key
-    with open("keys/" + numFiles() + ".asc", "wb") as keyf:
+    with open("keys/" + str(int(numFiles()) - 1) + ".asc", "wb") as keyf:
         keyf.write(encryptPGP(key))
 
 # record the video and store in file location
