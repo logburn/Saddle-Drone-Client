@@ -6,14 +6,13 @@
 '''
 
 # import things
-from cryptography.fernet import Fernet
 from Crypto.Cipher import PKCS1_OAEP as RSA
 from Crypto.Cipher import AES
+from Crypto.Random import get_random_bytes
 import os
 import glob
 from signal import signal, SIGINT
 from goprocam import GoProCamera, constants
-from base64 import b64decode, b64encode
 
 # global vars
 location = "/home/pi/final/videos/" # location of video files, subfolders "plaintext" and "encrypted" assumed to exist
@@ -47,21 +46,20 @@ def encryptPGP(file):
     key = RSA.importKey(keytext)
     return key.encrypt(file, 'x')[0]
 
-# encrypt given (video) file and store both encrypted video and (TODO) encrypted random iv
+# encrypt given (video) file and store both encrypted video and encrypted key
 def encryptVideo(file):
-    # open the file as bytes
-    with open(file, "rb") as og:
-        message = og.read()
-    # generate keys
-    key = Fernet.generate_key()
-    fernet = Fernet(key)
-    # encrypt file
-    enc = fernet.encrypt(message)
-    # save the encrypted mp4
-    with open(location+"encrypted/" + numFiles() + ".mpc", "wb") as encf:
-        encf.write(enc)
-    # save the key
-    with open("keys/" + str(int(numFiles()) - 1) + ".asc", "wb") as keyf:
+    # open file, generate cyrpto
+    message = open(file, "rb").read()
+    key = get_random_bytes(16)
+    print(str(key))
+    cipher = AES.new(key, AES.MODE_EAX)
+    ciphertext, tag = cipher.encrypt_and_digest(message)
+    # save encrypted file
+    file_out = open(location + "encrypted/" + numFiles() + ".mpc", "wb")
+    [ file_out.write(x) for x in (cipher.nonce, tag, ciphertext) ]
+    file_out.close()
+    # save the encrypted key
+    with open("keys/" + str(int(numFiles()) - 1) + ".asc", "wb+") as keyf:
         keyf.write(encryptPGP(key))
 
 # record the video and store in file location
@@ -70,19 +68,10 @@ takeVideo(seconds)
 # get all video files in folder, encrypt (get all just in case one was missed previously)
 fileset = [file for file in glob.glob(location + "plaintext/*.mp4", recursive=False)]
 
-# whether or not to print out current action
-verbose = True
+with open("numFiles.txt", "w+") as numf:
+    numf.write(numFiles())
 
 for file in fileset:
-    if verbose:
-        print("Working on file " + file)
-        print("Encrypting...")
     encryptVideo(file)
-    
-    if verbose:
-        print("Deleting...")
     os.remove(file)
-    
-    if verbose:
-        print("Done.")
 
