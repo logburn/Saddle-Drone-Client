@@ -6,7 +6,9 @@
 '''
 
 # import things
-from Crypto.Cipher import PKCS1_OAEP as RSA
+from Crypto.PublicKey import ECC
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import PKCS1_OAEP as pkrsa
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
 import os
@@ -36,22 +38,29 @@ def takeVideo(time):
     gopro.downloadLastMedia(custom_filename=(location+"plaintext/" + numFiles() + ".mp4"))
     gopro.delete("last")
 
-# TODO encrypt file data with assumed pgp key (file should already be read, this essentially
-# encrypts the text or contents of the file)
-def encryptPGP(file):
-    return file
-    #with open("pubkey.pem", "r") as keyfile:
-    #    key = RSA.importKey(b64decode(str(keyfile)))
-    keytext = "-----BEGIN PUBLIC KEY-----\nMIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDLjon5dPwTgHUr44KndKz0W7bN\nwEqs6IImvnh/X++FD8vpMNPpepgEpZBC52vTyhmsgJYbkNnp8DxSUApE+IL5FlKr\nDCTLp3KLfjD8onjHf7mtD7uMpxWkafmor4BGq05M/QRwttYjaQNBGT3BFYHi5NdX\negPZLolmwrqwndwGAQIDAQAB\n-----END PUBLIC KEY-----"
-    key = RSA.importKey(keytext)
-    return key.encrypt(file, 'x')[0]
+# method to encrypt with ECC, however this is unsupported in pycryptodome
+def encryptECC(data):
+    with open("publickey.pem", "rt") as keyfile:
+        key = ECC.import_key(keyfile.read())
+    return key.encrypt(data)
+
+# current method of public key encryption
+def encryptRSA(data):
+    key = RSA.import_key(open("publickey.pem", "r").read())
+    cipher = pkrsa.new(key)
+    encd = cipher.encrypt(data)
+    print(f"{data}\n{encd}")
+    return encd
+    
+# allowsp public key encryption method to be changed later
+def PKEncrypt(data):
+    return encryptRSA(data)
 
 # encrypt given (video) file and store both encrypted video and encrypted key
 def encryptVideo(file):
     # open file, generate cyrpto
     message = open(file, "rb").read()
     key = get_random_bytes(16)
-    print(str(key))
     cipher = AES.new(key, AES.MODE_EAX)
     ciphertext, tag = cipher.encrypt_and_digest(message)
     # save encrypted file
@@ -60,7 +69,7 @@ def encryptVideo(file):
     file_out.close()
     # save the encrypted key
     with open("keys/" + str(int(numFiles()) - 1) + ".asc", "wb+") as keyf:
-        keyf.write(encryptPGP(key))
+        keyf.write(PKEncrypt(key))
 
 # record the video and store in file location
 takeVideo(seconds)
