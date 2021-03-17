@@ -11,6 +11,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP as pkrsa
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
+import zipfile
 import os
 import glob
 from signal import signal, SIGINT
@@ -18,6 +19,8 @@ from goprocam import GoProCamera, constants
 
 # global vars
 location = "/home/pi/final/videos/" # location of video files, subfolders "plaintext" and "encrypted" assumed to exist
+locpt = location + "plaintext/"
+locec = location + "encrypted/"
 seconds = int(open("interval", "r").read()) # seconds to record video for
 
 # helps with video recording
@@ -29,6 +32,13 @@ def handler(s, f):
 def numFiles():
     return str(len([item for item in os.listdir(location+"encrypted/") if os.path.isfile(os.path.join(location+"encrypted/", item))]))
 
+# compresses a given file, new file is named same filename with .zip at end
+# returns name of new file
+def compress(filename):
+    zf = zipfile.ZipFile(filename + ".zip", mode='w', compression=zipfile.ZIP_DEFLATED)
+    zf.write(filename)
+    zf.close()
+    return filename + ".zip"
 
 # take video for time seconds, transfer to local storage and delete from gopro
 def takeVideo(time):
@@ -49,7 +59,6 @@ def encryptRSA(data):
     key = RSA.import_key(open("publickey.pem", "r").read())
     cipher = pkrsa.new(key)
     encd = cipher.encrypt(data)
-    print(f"{data}\n{encd}")
     return encd
     
 # allowsp public key encryption method to be changed later
@@ -80,7 +89,11 @@ fileset = [file for file in glob.glob(location + "plaintext/*.mp4", recursive=Fa
 with open("numFiles.txt", "w+") as numf:
     numf.write(numFiles())
 
+# compress
+i = 1
 for file in fileset:
-    encryptVideo(file)
+    newf = compress(file)
+    encryptVideo(newf)
     os.remove(file)
-
+    os.remove(newf)
+    
