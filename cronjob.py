@@ -44,8 +44,9 @@ def compress(filename):
 def takeVideo(time):
     signal(SIGINT, handler)
     gopro = GoProCamera.GoPro(ip_address=GoProCamera.GoPro.getWebcamIP())
+    gopro.video_settings("720p", fps='30')
     gopro.shoot_video(time)
-    gopro.downloadLastMedia(custom_filename=(location+"plaintext/" + numFiles() + ".mp4"))
+    gopro.downloadLowRes(custom_filename=(location+"plaintext/" + numFiles() + ".mp4"))
     gopro.delete("last")
 
 # method to encrypt with ECC, however this is unsupported in pycryptodome
