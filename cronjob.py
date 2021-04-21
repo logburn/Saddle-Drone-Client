@@ -16,9 +16,11 @@ import os
 import glob
 from signal import signal, SIGINT
 from goprocam import GoProCamera, constants
+import time
+import shutil
 
 # global vars
-location = "/home/pi/final/videos/" # location of video files, subfolders "plaintext" and "encrypted" assumed to exist
+location = os.getcwd() + "/videos/" # location of video files, subfolders "plaintext" and "encrypted" assumed to exist
 locpt = location + "plaintext/"
 locec = location + "encrypted/"
 seconds = int(open("interval", "r").read()) # seconds to record video for
@@ -30,7 +32,7 @@ def handler(s, f):
 
 # returns the current file number for naming convention
 def numFiles():
-    return str(len([item for item in os.listdir(location+"encrypted/") if os.path.isfile(os.path.join(location+"encrypted/", item))]))
+    return str(len([item for item in os.listdir(locec) if os.path.isfile(os.path.join(locec, item))]))
 
 # compresses a given file, new file is named same filename with .zip at end
 # returns name of new file
@@ -44,7 +46,7 @@ def compress(filename):
 def takeVideo(time):
     signal(SIGINT, handler)
     gopro = GoProCamera.GoPro(ip_address=GoProCamera.GoPro.getWebcamIP())
-    gopro.video_settings("720p", fps='30')
+    gopro.video_settings("480p", fps='30')
     gopro.shoot_video(time)
     gopro.downloadLowRes(custom_filename=(location+"plaintext/" + numFiles() + ".mp4"))
     gopro.delete("last")
@@ -74,13 +76,15 @@ def encryptVideo(file):
     cipher = AES.new(key, AES.MODE_EAX)
     ciphertext, tag = cipher.encrypt_and_digest(message)
     # save encrypted file
-    file_out = open(location + "encrypted/" + numFiles() + ".mpc", "wb")
+    file_out = open(locec + numFiles() + ".mpc", "wb")
     [ file_out.write(x) for x in (cipher.nonce, tag, ciphertext) ]
     file_out.close()
     # save the encrypted key
     with open("keys/" + str(int(numFiles()) - 1) + ".asc", "wb+") as keyf:
         keyf.write(PKEncrypt(key))
 
+# OLD METHOD
+''''''
 # record the video and store in file location
 takeVideo(seconds)
 
@@ -90,11 +94,52 @@ fileset = [file for file in glob.glob(location + "plaintext/*.mp4", recursive=Fa
 with open("numFiles.txt", "w+") as numf:
     numf.write(numFiles())
 
-# compress
-i = 1
+# compress and encrypt
 for file in fileset:
     newf = compress(file)
     encryptVideo(newf)
     os.remove(file)
     os.remove(newf)
-    
+''''''
+
+# FORK
+def child():
+    # child compresses and encrypts
+    fileset = [file for file in glob.glob(locpt + "*.mp4", recursive=False)]
+    if(len(fileset) == 0):
+        os._exit(0)
+    # prevents double encryption
+    folder = locpt + str(int(time.time()))
+    os.mkdir(folder)
+    for file in fileset:
+        shutil.move(file, folder)
+    fileset = [file for file in glob.glob(folder + "/*.mp4", recursive=False)]
+    for file in fileset:
+        print("Encrypting file " + file)
+        newf = compress(file)
+        encryptVideo(newf)
+        os.remove(file)
+        os.remove(newf)
+    shutil.rmtree(folder)
+    with open("numFiles.txt", "w+") as numf:
+        numf.write(numFiles())
+    os._exit(0)  
+
+def parent():
+    # parent records, child does everything else
+    try:
+        while True:
+            newpid = os.fork()
+            if newpid == 0:
+                child()
+            else:
+                takeVideo(seconds)
+    except KeyboardInterrupt:
+        print('Interrupted')
+        try:
+            #child()
+            os._exit(0)
+        except SystemExit:
+            os._exit(0)
+#parent()
+
